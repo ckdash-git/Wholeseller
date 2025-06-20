@@ -216,7 +216,7 @@ struct LoginView: View {
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(colorScheme == .dark ? Color(hex: "#a31aed") : Color.black)
+                    .background(colorScheme == .dark ? .orange : Color.black)
                     .foregroundColor(.white)
                     .cornerRadius(12)
             } else {

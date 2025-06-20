@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 import LocalAuthentication
 
 enum AppTheme: String, CaseIterable, Identifiable {
@@ -23,9 +24,23 @@ enum AppTheme: String, CaseIterable, Identifiable {
 }
 
 struct ProfileView: View {
-    @State private var isBiometricEnabled = false
+    @AppStorage("biometricLockEnabled") private var isBiometricEnabled: Bool = false
     @State private var authStatus: String?
+    @StateObject private var authVM = AuthViewModel()
     @AppStorage("selectedTheme") private var selectedTheme: AppTheme = .system
+    @State private var showBiometricAlert = false
+
+    @State private var showMyAccount = false
+    @State private var showSavedContacts = false
+    @State private var showTwoFactor = false
+    @State private var isLoggingOut = false
+    @State private var showLogoutConfirmation = false
+
+    private var userInitials: String {
+        let nameComponents = (authVM.currentUser?.fullName ?? "").split(separator: " ")
+        let initials = nameComponents.prefix(2).compactMap { $0.first.map { String($0) } }.joined()
+        return initials.uppercased()
+    }
 
     var body: some View {
         NavigationView {
@@ -35,17 +50,19 @@ struct ProfileView: View {
                     .bold()
                     .padding(.top, 4)
 
-                Image(systemName: "person.circle.fill")
-                    .resizable()
+                Text(userInitials)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
                     .frame(width: 100, height: 100)
-                    .foregroundColor(.gray)
+                    .background(Circle().fill(Color.gray))
                     .padding(.top, 10)
 
-                Text("Md Kamrul Hasan")
+                Text(authVM.currentUser?.fullName ?? "Name")
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("kamrulbd.cityedu@gmail.com")
+                Text(authVM.currentUser?.email ?? "Email")
                     .foregroundColor(.gray)
 
                 Picker("App Theme", selection: $selectedTheme) {
@@ -58,22 +75,47 @@ struct ProfileView: View {
 
                 List {
                     Section {
-                        profileRow(title: "My Account", subtitle: "Changes to your account details", icon: "person", showArrow: true, showWarning: true) {
-                            print("My Account tapped")
+                        NavigationLink(destination: MyAccountView().environmentObject(authVM)) {
+                            profileRow(title: "My Account", subtitle: "Changes to your account details", icon: "person", showArrow: true, showWarning: true)
                         }
-                        profileRow(title: "Saved Contact", subtitle: "Manage your saved contact", icon: "tray", showArrow: true) {
-                            print("Saved Contact tapped")
+                        NavigationLink(destination: SavedContactsView().environmentObject(authVM)) {
+                            profileRow(title: "Saved Contact", subtitle: "Manage your saved contact", icon: "tray", showArrow: true)
                         }
                         biometricRow
-                        profileRow(title: "Two-Factor Authentication", subtitle: "Further secure your account for safety", icon: "shield", showArrow: true) {
-                            print("Two-Factor Authentication tapped")
+                        NavigationLink(destination: AppVersion()) {
+                            profileRow(title: "App Version", subtitle: "Version 1.0.0", icon: "shield", showArrow: true)
                         }
-                        profileRow(title: "Log out", subtitle: "Further secure your account for safety", icon: "arrowshape.turn.up.left", showArrow: true) {
-                            print("Log out tapped")
+                        Button(action: {
+                            showLogoutConfirmation = true
+                        }) {
+                            profileRow(title: "Log out", subtitle: "Sign out of your account", icon: "arrowshape.turn.up.left", showArrow: true)
                         }
+                        .foregroundColor(.red)
                     }
                 }
                 .listStyle(.insetGrouped)
+                .alert("Log Out", isPresented: $showLogoutConfirmation) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Log Out", role: .destructive) {
+                        do {
+                            try Auth.auth().signOut()
+                            authVM.currentUser = nil
+                            isLoggingOut = true
+                        } catch {
+                            print("Sign out failed: \(error.localizedDescription)")
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to log out?")
+                }
+            }
+            .fullScreenCover(isPresented: $isLoggingOut) {
+                LoginView()
+            }
+            .alert("Biometric Authentication Failed", isPresented: $showBiometricAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(authStatus ?? "Biometric authentication failed or is unavailable.")
             }
         }
         .edgesIgnoringSafeArea(.bottom)
@@ -101,28 +143,21 @@ struct ProfileView: View {
     }
 
     private func profileRow(title: String, subtitle: String, icon: String, showArrow: Bool, showWarning: Bool = false, action: @escaping () -> Void = {}) -> some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(.green)
-                VStack(alignment: .leading) {
-                    Text(title)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                Spacer()
-                if showWarning {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                }
-                if showArrow {
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
-                }
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(.green)
+            VStack(alignment: .leading) {
+                Text(title)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            Spacer()
+            if showWarning {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
             }
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
     private func authenticate() {
@@ -134,13 +169,13 @@ struct ProfileView: View {
                 DispatchQueue.main.async {
                     if !success {
                         isBiometricEnabled = false
-                        authStatus = "Authentication failed"
+                        showBiometricAlert = true
                     }
                 }
             }
         } else {
             isBiometricEnabled = false
-            authStatus = "Biometric authentication not available"
+            showBiometricAlert = true
         }
     }
 }

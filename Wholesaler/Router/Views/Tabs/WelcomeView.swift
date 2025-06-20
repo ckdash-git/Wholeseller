@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct AllCategoriesView: View {
     var body: some View {
@@ -24,6 +25,8 @@ struct AllCategoriesView: View {
 
 struct WelcomeView: View {
     @State private var searchText = ""
+    @StateObject private var locationManager = LocationManager()
+    @State private var showLocationSearch = false
     
     var body: some View {
         NavigationView {
@@ -56,14 +59,20 @@ struct WelcomeView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    HStack {
-                        Text("Al Safa Street, Al Wasi")
-                            .font(.headline)
-                            .fontWeight(.medium)
-
-                        Image(systemName: "chevron.down")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    Button(action: { showLocationSearch = true }) {
+                        HStack {
+                            Text(locationManager.currentAddress.isEmpty ? "Fetching location..." : locationManager.currentAddress)
+                                .font(.headline)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .sheet(isPresented: $showLocationSearch) {
+                        LocationSearchView(currentAddress: $locationManager.currentAddress)
                     }
                 }
 

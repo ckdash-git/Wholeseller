@@ -1,38 +1,37 @@
-
-import Foundation
 import CoreLocation
-import Combine
-
+ 
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
-    @Published var currentAddress: String = "Fetching location..."
-
+    @Published var locationPermissionGranted = false
+    @Published var locationPermissionDenied = false
+ 
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.requestWhenInUseAuthorization()
-        manager.startUpdatingLocation()
     }
+ 
+    func checkPermission() {
+        if CLLocationManager.locationServicesEnabled() {
+            let status = manager.authorizationStatus
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-
-        let geocoder = CLGeocoder()
-        geocoder.reverseGeocodeLocation(location) { placemarks, error in
-            if let placemark = placemarks?.first {
-                self.currentAddress = [
-                    placemark.subThoroughfare,
-                    placemark.thoroughfare,
-                    placemark.locality
-                ]
-                .compactMap { $0 }
-                .joined(separator: ", ")
+            switch status {
+            case .notDetermined:
+                DispatchQueue.main.async {
+                    self.manager.requestWhenInUseAuthorization()
+                }
+            case .restricted, .denied:
+                locationPermissionDenied = true
+            case .authorizedAlways, .authorizedWhenInUse:
+                locationPermissionGranted = true
+            @unknown default:
+                break
             }
+        } else {
+            locationPermissionDenied = true
         }
     }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        self.currentAddress = "Location unavailable"
+ 
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        checkPermission()
     }
 }

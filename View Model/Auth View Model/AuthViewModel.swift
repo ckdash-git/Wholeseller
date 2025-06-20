@@ -14,7 +14,7 @@ final class AuthViewModel: ObservableObject {
     @Published var isLoading: Bool = true
     @Published var navigateToOTPVerification = false
     private let auth = Auth.auth()
-    private let firestore = Firestore.firestore()
+    let firestore = Firestore.firestore()
     
     init() {
         Task {
@@ -35,7 +35,18 @@ final class AuthViewModel: ObservableObject {
     func login(email: String, password: String) async -> Result<FirebaseAuth.User, Error> {
         do {
             let authResult = try await auth.signIn(withEmail: email, password: password)
-            let fetchedUser = await fetchUser(by: authResult.user.uid)
+            let userUID = authResult.user.uid
+            
+            let documentRef = firestore.collection("users").document(userUID)
+            let document = try await documentRef.getDocument()
+            
+            if !document.exists {
+                // Create user entry if it doesn't exist
+                let fullName = authResult.user.displayName ?? ""
+                await createUser(uid: userUID, email: email, fullName: fullName)
+            }
+
+            let fetchedUser = await fetchUser(by: userUID)
             self.currentUser = fetchedUser
             return .success(authResult.user)
         } catch {

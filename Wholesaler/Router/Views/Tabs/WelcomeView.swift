@@ -5,82 +5,151 @@
 //  Created by CHANDAN on 18/06/25.
 //
 
-import SwiftUI
-import MapKit
+//
+//  HomeView.swift
+//  Wholeseller
+//
+//  Created by CHANDAN on 18/06/25.
+//
 
-struct AllCategoriesView: View {
-    var body: some View {
-        List {
-            Text("Food")
-            Text("Stores")
-            Text("Grocery")
-            Text("Ice Creams")
-            Text("Snacks")
-            Text("Fruits")
-            // Add more categories as needed
-        }
-        .navigationTitle("All Categories")
-    }
-}
+import SwiftUI
 
 struct WelcomeView: View {
     @State private var searchText = ""
+    @State private var showLocationSheet = false
     @StateObject private var locationManager = LocationManager()
-    @State private var showLocationSearch = false
+    @State private var showPermissionAlert = false
+    enum CategoryDestination {
+        case food, icecreams, grocery, snacks, fruits
+    }
+    @State private var selectedCategory: CategoryDestination?
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                headerView
-                ScrollView {
-                    VStack(spacing: 0) {
-                        promotionalBanner
-                        categoriesSection
-                        picksForYouSection
-                        Spacer(minLength: 100)
+        ZStack {
+            NavigationView {
+                VStack(spacing: 0) {
+                    headerView
+                    ScrollView {
+                        NavigationLink(
+                            destination: destinationView(),
+                            isActive: Binding(
+                                get: { selectedCategory != nil },
+                                set: { if !$0 { selectedCategory = nil } }
+                            )
+                        ) {
+                            EmptyView()
+                        }
+                        VStack(spacing: 0) {
+                            promotionalBanner
+                            categoriesSection
+                            picksForYouSection
+                            Spacer(minLength: 100)
+                        }
                     }
                 }
+                .edgesIgnoringSafeArea(.top)
+                .background(Color(.systemBackground))
             }
-            .background(Color(.systemBackground))
+
+            if showPermissionAlert {
+                ZStack {
+                    Color.black.opacity(0.3).ignoresSafeArea()
+
+                    VStack(spacing: 16) {
+                        Text("For a better experience, your device will need to use Location Accuracy")
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+
+                        Text("The following settings should be on:")
+                            .font(.subheadline)
+
+                        Label("Device location", systemImage: "location.fill")
+                            .font(.subheadline)
+
+                        Text("Location Accuracy helps apps find your location more precisely by using Wi-Fi, Bluetooth, and mobile networks.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+
+                        VStack(spacing: 20) {
+                            Button(action: {
+                                showPermissionAlert = false
+                            }) {
+                                Text("No, thanks")
+                                    .padding()
+                                    .frame(maxWidth: .infinity, minHeight: 50)
+                                    .background(Color.gray.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+
+                            Button(action: {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                Text("Turn On")
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, minHeight: 50)
+                                    .background(Color.orange)
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(16)
+                    .padding(30)
+                }
+            }
         }
+        .onChange(of: locationManager.locationPermissionGranted) { granted in
+            if granted { showLocationSheet = true }
+        }
+        .onChange(of: locationManager.locationPermissionDenied) { denied in
+            if denied { showPermissionAlert = true }
+        }
+        .ignoresSafeArea()
     }
     
     private var headerView: some View {
         VStack(spacing: 15) {
+            Spacer().frame(height: 10)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Image(systemName: "location.fill")
                             .foregroundColor(.black)
                             .font(.caption)
-
                         Text("Location")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-
-                    Button(action: { showLocationSearch = true }) {
+                    Button(action: {
+                        showLocationSheet = true
+                    }) {
                         HStack {
-                            Text(locationManager.currentAddress.isEmpty ? "Fetching location..." : locationManager.currentAddress)
+                            Text("Al Safa Street, Al Wasi")
                                 .font(.headline)
                                 .fontWeight(.medium)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
                             Image(systemName: "chevron.down")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
-                    .sheet(isPresented: $showLocationSearch) {
-                        LocationSearchView(currentAddress: $locationManager.currentAddress)
-                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .fullScreenCover(isPresented: $showLocationSheet) {
+                                   LocationView()
+                               }
                 }
 
                 Spacer()
 
                 ZStack {
                     Button(action: {}) {
-                        Image(systemName: "bag.fill")
+                        Image(systemName: "cart.fill")
                             .font(.title2)
                             .foregroundColor(.black)
                     }
@@ -111,20 +180,10 @@ struct WelcomeView: View {
                 .padding(.vertical, 12)
                 .background(Color(.systemGray6))
                 .cornerRadius(25)
-
-                Button(action: {}) {
-                    HStack {
-                        Text("Filter")
-                            .fontWeight(.medium)
-
-                        Image(systemName: "slider.horizontal.3")
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(25)
-                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 25)
+                        .stroke(Color.orange, lineWidth: 1)
+                )
             }
         }
         .padding()
@@ -137,7 +196,7 @@ struct WelcomeView: View {
                 )
         )
         .padding(.horizontal, 0)
-        .padding(.top, 10)
+        // Removed .padding(.top, 10)
     }
     
     private var searchFilterView: some View {
@@ -153,6 +212,10 @@ struct WelcomeView: View {
             .padding(.vertical, 12)
             .background(Color(.systemGray6))
             .cornerRadius(25)
+            .overlay(
+                RoundedRectangle(cornerRadius: 25)
+                    .stroke(Color.orange, lineWidth: 2)
+            )
             
             Button(action: {}) {
                 HStack {
@@ -238,7 +301,7 @@ struct WelcomeView: View {
                 
                 Spacer()
                 
-                NavigationLink(destination: AllCategoriesView()) {
+                NavigationLink(destination: GroceryView()) {
                     Text("See All")
                         .foregroundColor(.gray)
                 }
@@ -248,11 +311,7 @@ struct WelcomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
                     categoryItem(icon: "fork.knife", title: "Food", color: .green)
-                    categoryItem(icon: "building.2", title: "Stores", color: .gray)
                     categoryItem(icon: "cart", title: "Grocery", color: .orange)
-                    categoryItem(icon: "", title: "Ice creams", color: .green)
-                    categoryItem(icon: "", title: "Snacks", color: .gray)
-                    categoryItem(icon: "", title: "Fruits", color: .orange)
                     categoryItem(icon: "", title: "Ice creams", color: .green)
                     categoryItem(icon: "", title: "Snacks", color: .gray)
                     categoryItem(icon: "", title: "Fruits", color: .orange)
@@ -267,19 +326,53 @@ struct WelcomeView: View {
     }
     
     private func categoryItem(icon: String, title: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Circle()
-                .fill(color.opacity(0.1))
-                .frame(width: 60, height: 60)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.title2)
-                        .foregroundColor(color)
-                )
-            
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
+        Button(action: {
+            switch title {
+            case "Food":
+                selectedCategory = .food
+            case "Grocery":
+                selectedCategory = .grocery
+            case "Ice creams":
+                selectedCategory = .icecreams
+            case "Snacks":
+                selectedCategory = .snacks
+            case "Fruits":
+                selectedCategory = .fruits
+            default:
+                break
+            }
+        }) {
+            VStack(spacing: 8) {
+                Circle()
+                    .fill(color.opacity(0.1))
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Image(systemName: icon)
+                            .font(.title2)
+                            .foregroundColor(color)
+                    )
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView() -> some View {
+        switch selectedCategory {
+        case .food:
+            FoodView()
+        case .grocery:
+            GroceryView()
+        case .icecreams:
+            IceCreamView()
+        case .snacks:
+            SnacksView()
+        case .fruits:
+            FruitsView()
+        case .none:
+            EmptyView()
         }
     }
     
@@ -445,3 +538,17 @@ struct RoundedCorner: Shape {
         return Path(path.cgPath)
     }
 }
+
+// View extension for corner radius on specific corners
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+
+
+
+
+
+
